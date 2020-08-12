@@ -15,7 +15,12 @@ public void Main(string argument, UpdateType updateType)
 
     IMyTextSurface drawingSurface = lcdButtonPanel.GetSurface(0);
 
-    Echo ("I have something to draw on: " + (drawingSurface != null));
+    if (drawingSurface == null) {
+        Echo ("no drawing surface on the block?");
+        return;
+    }
+
+    Echo ("I have something to draw on");
 
     drawingSurface.ContentType = ContentType.TEXT_AND_IMAGE;
     drawingSurface.Alignment = VRage.Game.GUI.TextPanel.TextAlignment.CENTER;
