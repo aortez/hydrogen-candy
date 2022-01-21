@@ -31,7 +31,7 @@ public class ProtectionBlock : MyGameLogicComponent
 
     private IMyFunctionalBlock block;
 
-    private bool createdTerminalControls;
+    private static bool createdTerminalControls = false;
 
     // this method is called async! always do stuff in the first update unless you're sure it must be in Init().
     public override void Init(MyObjectBuilder_EntityBase objectBuilder)
