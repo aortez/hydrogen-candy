@@ -5,12 +5,16 @@ using VRage.Game.ModAPI;
 
 namespace AllanTTS
 {
-    [MySessionComponentDescriptor(MyUpdateOrder.NoUpdate)]
-    public class ProtectionSession : MySessionComponentBase
+    [MySessionComponentDescriptor(MyUpdateOrder.BeforeSimulation)]
+    public class TssSession : MySessionComponentBase
     {
-        public static ProtectionSession Instance; // NOTE: this is the only acceptable static if you nullify it afterwards.
+        public static TssSession Instance; // NOTE: this is the only acceptable static if you nullify it afterwards.
 
         public List<IMyCubeBlock> ProtectionBlocks = new List<IMyCubeBlock>();
+
+        public GridItems Cache = new GridItems();
+
+        private int cacheRefreshCounter = 60;
 
         public override void LoadData()
         {
@@ -27,6 +31,16 @@ namespace AllanTTS
         protected override void UnloadData()
         {
             Instance = null; // important to avoid this object instance from remaining in memory on world unload/reload
+        }
+
+        // Executed every tick, 60 times a second, before physics simulation and only if game is not paused.
+        public override void UpdateBeforeSimulation()
+        {
+            cacheRefreshCounter -= 1;
+            if (cacheRefreshCounter <= 0) {
+                Cache.IsFresh = false;
+                cacheRefreshCounter = 60;
+            }
         }
 
         private void BeforeDamage(object target, ref MyDamageInformation info)

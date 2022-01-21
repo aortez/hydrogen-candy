@@ -20,144 +20,13 @@ using IMyEntity = VRage.Game.ModAPI.Ingame.IMyEntity;
 using IMyInventory = VRage.Game.ModAPI.Ingame.IMyInventory;
 using IMySlimBlock = VRage.Game.ModAPI.IMySlimBlock;
 
-/*
-Cache is held by the LC
-Cache probes are done against all other blocks.
-
-*/
-
 namespace AllanTTS
 {
 
-public class StuffCache {
-    public StringBuilder IngotsMessage = new StringBuilder();
-    public StringBuilder OresMessage = new StringBuilder();
-
-    // Ore Item types.
-    private List<Item> ores = new List<Item>() {
-        new Item("Cobalt", "Cobalt", "MyObjectBuilder_Ore"),
-        new Item("Gold", "Gold", "MyObjectBuilder_Ore"),
-        new Item("Ice", "Ice", "MyObjectBuilder_Ore"),
-        new Item("Iron", "Iron", "MyObjectBuilder_Ore"),
-        new Item("Magnesium", "Magnesium", "MyObjectBuilder_Ore"),
-        new Item("Nickel", "Nickel", "MyObjectBuilder_Ore"),
-        new Item("Platinum", "Platinum", "MyObjectBuilder_Ore"),
-        new Item("Scrap", "Scrap", "MyObjectBuilder_Ore"),
-        new Item("Silicon", "Silicon", "MyObjectBuilder_Ore"),
-        new Item("Silver", "Silver", "MyObjectBuilder_Ore"),
-        new Item("Stone", "Stone", "MyObjectBuilder_Ore"),
-        new Item("Uranium", "Uranium", "MyObjectBuilder_Ore")
-    };
-
-    // Ore Item types.
-    private List<Item> ingots = new List<Item>() {
-        new Item("Cobalt", "Cobalt", "MyObjectBuilder_Ingot"),
-        new Item("Gold", "Gold", "MyObjectBuilder_Ingot"),
-        new Item("Gravel", "Stone", "MyObjectBuilder_Ingot"),
-        new Item("Iron", "Iron", "MyObjectBuilder_Ingot"),
-        new Item("Magnesium", "Magnesium", "MyObjectBuilder_Ingot"),
-        new Item("Nickel", "Nickel", "MyObjectBuilder_Ingot"),
-        new Item("Platinum", "Platinum", "MyObjectBuilder_Ingot"),
-        new Item("Silicon", "Silicon", "MyObjectBuilder_Ingot"),
-        new Item("Silver", "Silver", "MyObjectBuilder_Ingot"),
-        new Item("Uranium", "Uranium", "MyObjectBuilder_Ingot")
-    };
-
-    // Blocks on this grid.
-    private List<IMySlimBlock> blocks = new List<IMySlimBlock>();
-
-    // Is the cache fresh? The holder of this cache needs to maintain this state
-    // if they want it to be valid.
-    public bool IsFresh;
-
-    public void RefreshCache(IMyCubeGrid grid) {
-        Log.Info("refreshing cache");
-
-        // Fetch all blocks in grid.
-        // IMyGridTerminalSystem gridTerminal = MyAPIGateway.TerminalActionsHelper.GetTerminalSystemForGrid((Sandbox.ModAPI.IMyCubeGrid)grid);
-        // ((Sandbox.ModAPI.IMyCubeGrid)grid).GetBlocks(blocks);
-        grid.GetBlocks(blocks);
-
-        // Check to see if they have what we're looking for.
-        foreach (IMySlimBlock slimBlock in blocks)
-        {
-            IMyCubeBlock block = slimBlock.FatBlock;
-            if (block == null || !block.HasInventory) {
-                 continue;
-            }
-
-            foreach (Item item in ingots)
-            {
-                item.Count += CountItemType(block, item.Type);
-            }
-
-            foreach (Item item in ores)
-            {
-                item.Count += CountItemType(block, item.Type);
-            }
-        }
-
-        OresMessage = new StringBuilder();
-        OresMessage.AppendLine("--- Ores ---");
-        foreach (Item item in ores)
-        {
-            MaybePrintCount(OresMessage, item);
-            item.Count = 0;
-        }
-
-        IngotsMessage = new StringBuilder();
-        IngotsMessage.AppendLine("--- Ingots ---");
-        foreach (Item item in ingots)
-        {
-            MaybePrintCount(IngotsMessage, item);
-            item.Count = 0;
-        }
-    }
-
-    private void MaybePrintCount(StringBuilder stringBuilder, Item item)
-    {
-        if (item.Count <= 0) {
-            return;
-        }
-
-        stringBuilder.AppendLine(item.DisplayName + ": " + RawAmountToWeight(item.Count));
-    }
-
-    private long CountItemType(IMyEntity block, MyItemType type)
-    {
-        long count = 0;
-
-        if (!block.HasInventory)
-        {
-            return count;
-        }
-
-        for (int i = 0; i < block.InventoryCount; i++)
-        {
-            IMyInventory inventory = block.GetInventory(i);
-            count += (long)inventory.GetItemAmount(type);
-        }
-        return count;
-    }
-
-    private string RawAmountToWeight(long rawAmount)
-    {
-        if (rawAmount < 1000) {
-            return (rawAmount / 1.0f).ToString("#,#0.0") + " kg";
-        } else if (rawAmount < 1000000) {
-            return (rawAmount / 1000.0f).ToString("#,#0.0") + " k";
-        } else {
-            return (rawAmount / 1000000.0f).ToString("#,#0.0") + " Gg";
-        }
-    }
-}
-
-// change MyObjectBuilder_BatteryBlock to the block type you're using, it must be the exact type, no inheritence.
+// Must use exact type, no inheritence.
 [MyEntityComponentDescriptor(typeof(MyObjectBuilder_TextPanel), false, "AllanLargeLCDPanel")]
 public class ProtectionBlock : MyGameLogicComponent
 {
-    public StuffCache Cache = new StuffCache();
-
     public bool IsOptionSet;
 
     private IMyFunctionalBlock block;
@@ -168,7 +37,6 @@ public class ProtectionBlock : MyGameLogicComponent
     public override void Init(MyObjectBuilder_EntityBase objectBuilder)
     {
         NeedsUpdate = MyEntityUpdateEnum.BEFORE_NEXT_FRAME;
-        Cache.IsFresh = false;
         Log.Info("ProtectionBlock.Init", "ProtectionBlock.Init", 500);
     }
 
@@ -179,7 +47,7 @@ public class ProtectionBlock : MyGameLogicComponent
         if (block.CubeGrid?.Physics == null) // ignore projected and other non-physical grids
             return;
 
-        ProtectionSession.Instance?.ProtectionBlocks.Add(block);
+        TssSession.Instance?.ProtectionBlocks.Add(block);
 
         CreateTerminalControls();
 
@@ -188,7 +56,7 @@ public class ProtectionBlock : MyGameLogicComponent
 
     public override void Close() // called when block is removed for whatever reason (including ship despawn)
     {
-        ProtectionSession.Instance?.ProtectionBlocks.Remove((IMyFunctionalBlock)Entity);
+        TssSession.Instance?.ProtectionBlocks.Remove((IMyFunctionalBlock)Entity);
     }
 
     public override void UpdateBeforeSimulation()

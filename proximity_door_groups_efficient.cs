@@ -99,6 +99,7 @@ TimeSpan cacheRefreshPeriod = new TimeSpan(0, 0, 5);
 TimeSpan timeSinceLastCacheUpdate = new TimeSpan(0, 0, 0);
 public void Main(string argument, UpdateType updateType)
 {
+    Echo("proximity-autodoors");
     timeSinceLastCacheUpdate += Runtime.TimeSinceLastRun;
     Echo ("LastRunTimeMs: " + Runtime.LastRunTimeMs + ", timeSinceLastCacheUpdate: " + timeSinceLastCacheUpdate);
     if (timeSinceLastCacheUpdate > cacheRefreshPeriod) {

@@ -26,48 +26,62 @@ public void updateCache() {
     // Find all blocks attached to the construct.
     GridTerminalSystem.GetBlocksOfType(blocks, block => block.IsSameConstructAs(Me));
 
-    // Find a display surface.
-    IMyTextPanel panel = GridTerminalSystem.GetBlockWithName(statusPanelName) as IMyTextPanel;
-    if (panel != null) {
-        Echo("found panel");
-        surface = (IMyTextSurface)panel;
-    } else {
-        Echo("panel not found");
+    // Find a display surface...
+    // If we found a directly named text surface, then use that.
+    foreach (IMyTerminalBlock block in blocks) {
+        if (block.CustomName.Equals(statusPanelName) && block is IMyTextSurface) {
+            surface = (IMyTextSurface)block;
+            Echo("found panel");
+            break;
+        }
+    }
+    // And we're done!
+    if (surface != null) {
+        return;
+    }
 
-        IMyCockpit cockpit = GridTerminalSystem.GetBlockWithName(statusPanelName) as IMyCockpit;
-        if (cockpit != null) {
+    // If we didn't find a text surface, look for appopriately named cockpit.
+    Echo("panel not found, searching cockpits...");
+    IMyCockpit cockpit = null;
+    foreach (IMyTerminalBlock block in blocks) {
+        Echo("block.CustomName: " + block.CustomName);
+        if (block.CustomName.Equals(statusPanelName) && block is IMyCockpit) {
+            cockpit = (IMyCockpit)block;
             Echo("cockpit found");
-
-            // Figure out if the user has specified which display index to use.
-            int surfaceIndex = 0;
-            int separatorPos = cockpit.CustomData.LastIndexOf(statusPanelName);
-            if (separatorPos >= 0) {
-                Echo("custom data: " + cockpit.CustomData);
-                try
-                {
-                    string indexString = cockpit.CustomData[statusPanelName.Length + 1].ToString();
-                    Echo("index char: " + indexString);
-                    surfaceIndex = Int32.Parse(indexString);
-                }
-                catch (Exception e)
-                {
-                    Echo("Error parsing surface index from custom data: " + cockpit.CustomData + ": " + e);
-                }
-                Echo("surface index: " + surfaceIndex);
-
-            } else {
-                Echo("custom data, separator not found...: " + cockpit.CustomData + ", separatorPos: " + separatorPos);
-            }
-
-            surface = cockpit.GetSurface(surfaceIndex);
-        } else {
-            Echo("cockpit not found");
+            break;
         }
+    }
 
-        if (surface == null) {
-            Echo("no surface found");
-            return;
+    if (cockpit == null) {
+        Echo("cockpit not found");
+        return;
+    }
+
+    // Figure out if the user has specified which display index to use.
+    int surfaceIndex = 0;
+    int separatorPos = cockpit.CustomData.LastIndexOf(statusPanelName);
+    if (separatorPos >= 0) {
+        Echo("custom data: " + cockpit.CustomData);
+        try
+        {
+            string indexString = cockpit.CustomData[statusPanelName.Length + 1].ToString();
+            Echo("index char: " + indexString);
+            surfaceIndex = Int32.Parse(indexString);
         }
+        catch (Exception e)
+        {
+            Echo("Error parsing surface index from custom data: " + cockpit.CustomData + ": " + e);
+        }
+        Echo("surface index: " + surfaceIndex);
+
+    } else {
+        Echo("custom data, separator not found...: " + cockpit.CustomData + ", separatorPos: " + separatorPos);
+    }
+
+    surface = cockpit.GetSurface(surfaceIndex);
+    if (surface == null) {
+        Echo("no surface found");
+        return;
     }
 }
 
@@ -77,7 +91,7 @@ public Program()
     updateCache();
 }
 
-TimeSpan cacheRefreshPeriod = new TimeSpan(0, 0, 5);
+TimeSpan cacheRefreshPeriod = new TimeSpan(0, 0, 10);
 TimeSpan timeSinceLastCacheUpdate = new TimeSpan(0, 0, 0);
 
 public void Main(string argument, UpdateType updateType)
@@ -88,6 +102,9 @@ public void Main(string argument, UpdateType updateType)
         updateCache();
         timeSinceLastCacheUpdate = new TimeSpan(0, 0, 0);
     }
+
+    // Get ship controller block...
+    // public Vector3 MoveIndicator { get; }
 
     if (surface == null) {
         Echo("no output surface found");
@@ -117,6 +134,6 @@ public void Main(string argument, UpdateType updateType)
     }
 
     surface.ContentType = ContentType.TEXT_AND_IMAGE;
-    surface.Alignment = VRage.Game.GUI.TextPanel.TextAlignment.CENTER;
+    surface.Alignment = VRage.Game.GUI.TextPanel.TextAlignment.LEFT;
     surface.WriteText(outputMessage);
 }

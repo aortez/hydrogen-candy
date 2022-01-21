@@ -31,8 +31,6 @@ public class IngotsAndOresTSS : MyTSSCommon
 {
     protected ItemGroups mode;
 
-    private StuffCache cache = new StuffCache();
-
     // Update frequency, in number of frames.
     public override ScriptUpdate NeedsUpdate => ScriptUpdate.Update100;
 
@@ -69,58 +67,13 @@ public class IngotsAndOresTSS : MyTSSCommon
         {
             base.Run();
 
-            // If we have a parent block, let's see if it has an up to date cache that we can use.
-            // ProtectionBlock parentBlock = TerminalBlock.GameLogic.GetAs<ProtectionBlock>();
-            // if (parentBlock != null && parentBlock.IsCacheFresh == true) {
-            //     Log.Info("Use cache from parent");
-            //
-            //     // We'll just use the parent block's cache from now on out.
-            //     cache = parentBlock.Cache;
-            // }
-
-            // If cache is stale, then run an update.
-            // if (!cache.IsFresh) {
-            cache = new StuffCache();
-            cache.RefreshCache(TerminalBlock.CubeGrid);
-
-                // TODO: Figure out how to copy data from this block to other blocks
-                // of this type on this grid.
-                //
-
-                // Now that our cache is fresh, update the cache of the
-                // othe blocks in the grid.
-                // foreach (Sandbox.ModAPI.IMyTerminalBlock block in blocks) {
-                //     if (TerminalBlock.EntityId != block.EntityId) {
-                //         continue;
-                //     }
-                //     try {
-                //         // IngotsAndOresTSS other = (IngotsAndOresTSS) block;
-                //         // if (other != null) {
-                //         // block.ingotsMessage = ingotsMessage;
-                //
-                //             // other.ingotsMessage = ingotsMessage;
-                //             // other.oresMessage = oresMessage;
-                //         // MyAPIGateway.Utilities.ShowNotification("refreshed cache!!");
-                //         // }
-                //     }
-                //     catch(Exception e) {
-                //     }
-                // }
-            // } else {
-                // MyAPIGateway.Utilities.ShowNotification("using cache");
-            // }
-
-            // TODO: We don't want to duplicate work, so first check to see
-            // if we have an up to date answer already.  If not, then compute it
-            // and reach out to other similar blocks on this grid and share the
-            // result.
-
-            // Here's how to show a pop up notification:
-//                MyAPIGateway.Utilities.ShowNotification("num blocks: " + blocks.Count);
-
-            // Unless someone else refreshes our cache, then next time we wake up,
-            // we will do it ourself.
-            // cache.IsFresh = false;
+            // If cache is stale, refresh it.
+            if (!TssSession.Instance.Cache.IsFresh) {
+                TssSession.Instance.Cache.RefreshCache(TerminalBlock.CubeGrid);
+            } else {
+                Log.Info("using cache", "using cache", 500);
+                MyAPIGateway.Utilities.ShowNotification("USING CACHE!!!!");
+            }
 
             // hold L key to see how the error is shown, remove this after you've played around with it =)
             if (MyAPIGateway.Input.IsKeyPress(VRage.Input.MyKeys.L)) {
@@ -128,13 +81,13 @@ public class IngotsAndOresTSS : MyTSSCommon
             }
 
             if (mode == ItemGroups.Ingots) {
-                Draw(cache.IngotsMessage.ToString());
+                Draw(TssSession.Instance.Cache.IngotsMessage.ToString());
             }
             else if (mode == ItemGroups.Ores) {
-                Draw(cache.OresMessage.ToString());
+                Draw(TssSession.Instance.Cache.OresMessage.ToString());
             }
             else if (mode == ItemGroups.IngotsAndOres) {
-                Draw(cache.OresMessage.ToString() + "\n" + cache.IngotsMessage.ToString());
+                Draw(TssSession.Instance.Cache.OresMessage.ToString() + "\n" + TssSession.Instance.Cache.IngotsMessage.ToString());
             }
             else {
                 throw new Exception("Oh noes an error :(...");
