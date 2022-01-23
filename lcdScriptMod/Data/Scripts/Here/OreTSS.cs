@@ -35,13 +35,17 @@ public class IngotsAndOresTSS : MyTSSCommon
 
     public IngotsAndOresTSS(IMyTextSurface surface, IMyCubeBlock block, Vector2 size) : base(surface, block, size)
     {
+        Log.Info("Creating IngotsAndOresTSS...");
         mode = ItemGroups.IngotsAndOres;
         // Called when script is created.
         // This class is instanced per LCD that uses it, which means the same block can have multiple instances of this script aswell (e.g. a cockpit with all its screens set to use this script).
         TerminalBlock = (Sandbox.ModAPI.IMyTerminalBlock)block; // internal stored m_block is the ingame interface which has no events, so can't unhook later on, therefore this field is required.
         TerminalBlock.OnMarkForClose += BlockMarkedForClose; // required if you're gonna make use of Dispose() as it won't get called when block is removed or grid is cut/unloaded.
 
+        // Maybe create the terminal controls for this block (some other TSS on this
+        // block might have already done it).
         CreateTerminalControls();
+        Log.Info("Done creating IngotsAndOresTSS!");
     }
 
     // Called when script is removed for any reason, do clean up here.
@@ -63,6 +67,26 @@ public class IngotsAndOresTSS : MyTSSCommon
         try
         {
             base.Run();
+
+            // Maybe create the data cache for this grid.
+            if (!TssSession.Instance.Cache.ContainsKey(TerminalBlock.CubeGrid.EntityId)) {
+                TssSession.Instance.Cache.Add(TerminalBlock.CubeGrid.EntityId, new GridItems());
+            }
+
+            // Maybe create the settings for this TSS block.
+            if (!TssSession.Instance.TssSettings.ContainsKey(TerminalBlock.EntityId)) {
+                Log.Info("\nCandidate DefinitionDisplayNameText: " + TerminalBlock.DefinitionDisplayNameText);
+                Log.Info("Candidate DetailedInfo: " + TerminalBlock.DetailedInfo);
+                Log.Info("Candidate DisplayName: " + TerminalBlock.DisplayName);
+                Log.Info("Candidate EntityId: " + TerminalBlock.EntityId);
+                Log.Info("Candidate Name: " + TerminalBlock.Name);
+                Log.Info("Registering EntityID: " + TerminalBlock.EntityId, "Registering entityID: " + TerminalBlock.EntityId, 500);
+                Stuff stuff = new Stuff(false, 0.8f);
+                if (TerminalBlock.DefinitionDisplayNameText == "LCD Panel Large (Allan)") {
+                    stuff.Scale = 1.2f;
+                }
+                TssSession.Instance.TssSettings.Add(TerminalBlock.EntityId, stuff);
+            }
 
             // If cache is stale, refresh it.
             if (!TssSession.Instance.Cache.ContainsKey(TerminalBlock.CubeGrid.EntityId)) {
@@ -89,10 +113,14 @@ public class IngotsAndOresTSS : MyTSSCommon
                     cache.OresMessage.ToString()
                     + "\n" + cache.IngotsMessage.ToString()
                     + "\n" + cache.CargoMessage.ToString()
+                    + "\n" + cache.PowerMessage.ToString()
                 );
             }
             else if (mode == ItemGroups.Ores) {
                 Draw(cache.OresMessage.ToString());
+            }
+            else if (mode == ItemGroups.Power) {
+                Draw(cache.PowerMessage.ToString());
             }
             else {
                 throw new Exception("Unhandled TSS \"mode\": " + mode);
@@ -164,25 +192,6 @@ public class IngotsAndOresTSS : MyTSSCommon
     }
 
     void CreateTerminalControls() {
-        // Maybe create the data cache for this grid.
-        if (!TssSession.Instance.Cache.ContainsKey(TerminalBlock.CubeGrid.EntityId)) {
-            TssSession.Instance.Cache.Add(TerminalBlock.CubeGrid.EntityId, new GridItems());
-        }
-
-        if (TssSession.Instance.TssSettings.ContainsKey(TerminalBlock.EntityId)) return;
-
-        Log.Info("\nCandidate DefinitionDisplayNameText: " + TerminalBlock.DefinitionDisplayNameText);
-        Log.Info("Candidate DetailedInfo: " + TerminalBlock.DetailedInfo);
-        Log.Info("Candidate DisplayName: " + TerminalBlock.DisplayName);
-        Log.Info("Candidate EntityId: " + TerminalBlock.EntityId);
-        Log.Info("Candidate Name: " + TerminalBlock.Name);
-        Log.Info("Registering EntityID: " + TerminalBlock.EntityId, "Registering entityID: " + TerminalBlock.EntityId, 500);
-        Stuff stuff = new Stuff(false, 0.8f);
-        if (TerminalBlock.DefinitionDisplayNameText == "LCD Panel Large (Allan)") {
-            stuff.Scale = 1.2f;
-        }
-        TssSession.Instance.TssSettings.Add(TerminalBlock.EntityId, stuff);
-
         if(createdTerminalControls)
             return;
 
@@ -249,6 +258,7 @@ public class IngotsAndOresTSS : MyTSSCommon
 
 }
 
+
 [MyTextSurfaceScript("CargoSpace", "CargoSpace")]
 public class MyCargoSpace : IngotsAndOresTSS {
     public MyCargoSpace(IMyTextSurface surface, IMyCubeBlock block, Vector2 size) : base(surface, block, size)
@@ -264,6 +274,15 @@ public class Ores : IngotsAndOresTSS {
     {
         base.mode = ItemGroups.Ores;
         Log.Info("new Ores TSS created");
+    }
+}
+
+[MyTextSurfaceScript("Power", "Power")]
+public class Power : IngotsAndOresTSS {
+    public Power(IMyTextSurface surface, IMyCubeBlock block, Vector2 size) : base(surface, block, size)
+    {
+        base.mode = ItemGroups.Power;
+        Log.Info("new Power TSS created");
     }
 }
 

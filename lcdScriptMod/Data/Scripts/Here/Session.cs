@@ -3,6 +3,8 @@ using Sandbox.ModAPI;
 using VRage.Game.Components;
 using VRage.Game.ModAPI;
 
+using Digi;
+
 namespace AllanTTS
 {
     public class Stuff {
@@ -40,11 +42,12 @@ namespace AllanTTS
         {
             // MyAPIGateway.Session.DamageSystem.RegisterBeforeDamageHandler(0, BeforeDamage);
 
-            MyAPIGateway.Utilities.ShowNotification("Session");
+            Log.Info("Session.BeforeStart");
         }
 
         protected override void UnloadData()
         {
+            Log.Info("Session.UnloadData");
             Instance = null;
             Cache = null;
             ProtectionBlocks = null;
