@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using Sandbox.Game.GameSystems.TextSurfaceScripts;
 using Sandbox.ModAPI;
+using Sandbox.ModAPI.Interfaces.Terminal;
 using VRage.Game;
 using VRage.Game.GUI.TextPanel;
 using VRage.Game.ModAPI;
@@ -10,11 +11,9 @@ using VRage.ModAPI;
 using VRage.Utils;
 using VRageMath;
 
-// Avoid including ingame namespaces because they cause ambiguity errors, instead, do aliases:
 using IMyGridTerminalSystem = Sandbox.ModAPI.Ingame.IMyGridTerminalSystem;
-using IMyTerminalBlock = Sandbox.ModAPI.Ingame.IMyTerminalBlock;
-
 using IMyInventory = VRage.Game.ModAPI.Ingame.IMyInventory;
+using IMyTerminalBlock = Sandbox.ModAPI.Ingame.IMyTerminalBlock;
 using MyItemType = VRage.Game.ModAPI.Ingame.MyItemType;
 
 using Digi;
@@ -22,11 +21,6 @@ using Digi;
 namespace AllanTTS
 {
 
-// Text Surface Scripts (TSS) can be selected in any LCD's scripts list.
-// These are meant as fast no-sync (sprites are not sent over network) display scripts, and the Run() method only executes player-side (no DS).
-// You can still use a session comp and access it through this to use for caches/shared data/etc.
-//
-// The display name has localization support aswell, same as a block's DisplayName in SBC.
 public class IngotsAndOresTSS : MyTSSCommon
 {
     protected ItemGroups mode;
@@ -37,6 +31,8 @@ public class IngotsAndOresTSS : MyTSSCommon
     // The TerminalBlock that this TSS lives in.
     private readonly Sandbox.ModAPI.IMyTerminalBlock TerminalBlock;
 
+    private static bool createdTerminalControls = false;
+
     public IngotsAndOresTSS(IMyTextSurface surface, IMyCubeBlock block, Vector2 size) : base(surface, block, size)
     {
         mode = ItemGroups.IngotsAndOres;
@@ -44,14 +40,15 @@ public class IngotsAndOresTSS : MyTSSCommon
         // This class is instanced per LCD that uses it, which means the same block can have multiple instances of this script aswell (e.g. a cockpit with all its screens set to use this script).
         TerminalBlock = (Sandbox.ModAPI.IMyTerminalBlock)block; // internal stored m_block is the ingame interface which has no events, so can't unhook later on, therefore this field is required.
         TerminalBlock.OnMarkForClose += BlockMarkedForClose; // required if you're gonna make use of Dispose() as it won't get called when block is removed or grid is cut/unloaded.
+
+        CreateTerminalControls();
     }
 
+    // Called when script is removed for any reason, do clean up here.
     public override void Dispose()
     {
         base.Dispose(); // do not remove
         TerminalBlock.OnMarkForClose -= BlockMarkedForClose;
-
-        // Called when script is removed for any reason, so that you can clean up stuff if you need to.
     }
 
     void BlockMarkedForClose(IMyEntity ent)
@@ -68,31 +65,38 @@ public class IngotsAndOresTSS : MyTSSCommon
             base.Run();
 
             // If cache is stale, refresh it.
-            if (!TssSession.Instance.Cache.IsFresh) {
-                TssSession.Instance.Cache.RefreshCache(TerminalBlock.CubeGrid);
-            } else {
-                Log.Info("using cache", "using cache", 500);
-                MyAPIGateway.Utilities.ShowNotification("USING CACHE!!!!");
+            if (!TssSession.Instance.Cache.ContainsKey(TerminalBlock.CubeGrid.EntityId)) {
+                throw new Exception("Cache should not be null!");
+            }
+            GridItems cache = TssSession.Instance.Cache[TerminalBlock.CubeGrid.EntityId];
+            if (!cache.IsFresh) {
+                cache.RefreshCache(TerminalBlock.CubeGrid);
             }
 
-            // hold L key to see how the error is shown, remove this after you've played around with it =)
+            // hold L key to see how the error is shown.
             if (MyAPIGateway.Input.IsKeyPress(VRage.Input.MyKeys.L)) {
-                throw new Exception("Oh noes an error :}");
+                throw new Exception("Oh noes you pressed L");
             }
 
-            if (mode == ItemGroups.Ingots) {
-                Draw(TssSession.Instance.Cache.IngotsMessage.ToString());
+            if (mode == ItemGroups.CargoSpace) {
+                Draw(cache.CargoMessage.ToString());
             }
-            else if (mode == ItemGroups.Ores) {
-                Draw(TssSession.Instance.Cache.OresMessage.ToString());
+            else if (mode == ItemGroups.Ingots) {
+                Draw(cache.IngotsMessage.ToString());
             }
             else if (mode == ItemGroups.IngotsAndOres) {
-                Draw(TssSession.Instance.Cache.OresMessage.ToString() + "\n" + TssSession.Instance.Cache.IngotsMessage.ToString());
+                Draw(
+                    cache.OresMessage.ToString()
+                    + "\n" + cache.IngotsMessage.ToString()
+                    + "\n" + cache.CargoMessage.ToString()
+                );
+            }
+            else if (mode == ItemGroups.Ores) {
+                Draw(cache.OresMessage.ToString());
             }
             else {
-                throw new Exception("Oh noes an error :(...");
+                throw new Exception("Unhandled TSS \"mode\": " + mode);
             }
-
         }
         catch(Exception e)
         {
@@ -101,33 +105,20 @@ public class IngotsAndOresTSS : MyTSSCommon
         }
     }
 
-    // Drawing sprites works exactly like in PB API.
-    // Therefore this guide applies: https://github.com/malware-dev/MDK-SE/wiki/Text-Panels-and-Drawing-Sprites
-
-    // there are also some helper methods from the MyTSSCommon that this extends.
-    // like: AddBackground(frame, Surface.ScriptBackgroundColor); - a grid-textured background
-
-    // the colors in the terminal are Surface.ScriptBackgroundColor and Surface.ScriptForegroundColor, the other ones without Script in name are for text/image mode.
-
     void Draw(String message)
     {
+        Stuff settings = TssSession.Instance.TssSettings[TerminalBlock.EntityId];
+
         Vector2 screenSize = Surface.SurfaceSize;
         Vector2 screenCorner = (Surface.TextureSize - screenSize) * 0.5f;
 
-        float fontScale = 1.0f;
-        float length = screenSize.Length();
-        if (length < 500.0f) {
-            fontScale = 0.5f;
-        }
-
         var frame = Surface.DrawFrame();
-        var text = MySprite.CreateText(message, "Monospace", Surface.ScriptForegroundColor, fontScale, TextAlignment.LEFT);
+        var text = MySprite.CreateText(message, "White", Surface.ScriptForegroundColor, settings.Scale, TextAlignment.LEFT);
         text.Position = screenCorner + new Vector2(16, 16); // 16px from topleft corner of the visible surface
+        // Log.Info("text.Size: " + (float)text.Size?.Length(), "text.Size: " + (float)text.Size?.Length(), 500);
         frame.Add(text);
 
-        // add more sprites and stuff
-
-        frame.Dispose(); // send sprites to the screen
+        frame.Dispose();
     }
 
     // The original example Draw() method.
@@ -141,9 +132,7 @@ public class IngotsAndOresTSS : MyTSSCommon
         text.Position = screenCorner + new Vector2(16, 16); // 16px from topleft corner of the visible surface
         frame.Add(text);
 
-        // add more sprites and stuff
-
-        frame.Dispose(); // send sprites to the screen
+        frame.Dispose();
     }
 
     void DrawError(Exception e)
@@ -172,6 +161,100 @@ public class IngotsAndOresTSS : MyTSSCommon
             if(MyAPIGateway.Session?.Player != null)
                 MyAPIGateway.Utilities.ShowNotification($"[ ERROR: {GetType().FullName}: {e.Message} | Send SpaceEngineers.Log to mod author ]", 10000, MyFontEnum.Red);
         }
+    }
+
+    void CreateTerminalControls() {
+        // Maybe create the data cache for this grid.
+        if (!TssSession.Instance.Cache.ContainsKey(TerminalBlock.CubeGrid.EntityId)) {
+            TssSession.Instance.Cache.Add(TerminalBlock.CubeGrid.EntityId, new GridItems());
+        }
+
+        if (TssSession.Instance.TssSettings.ContainsKey(TerminalBlock.EntityId)) return;
+
+        Log.Info("\nCandidate DefinitionDisplayNameText: " + TerminalBlock.DefinitionDisplayNameText);
+        Log.Info("Candidate DetailedInfo: " + TerminalBlock.DetailedInfo);
+        Log.Info("Candidate DisplayName: " + TerminalBlock.DisplayName);
+        Log.Info("Candidate EntityId: " + TerminalBlock.EntityId);
+        Log.Info("Candidate Name: " + TerminalBlock.Name);
+        Log.Info("Registering EntityID: " + TerminalBlock.EntityId, "Registering entityID: " + TerminalBlock.EntityId, 500);
+        Stuff stuff = new Stuff(false, 0.8f);
+        if (TerminalBlock.DefinitionDisplayNameText == "LCD Panel Large (Allan)") {
+            stuff.Scale = 1.2f;
+        }
+        TssSession.Instance.TssSettings.Add(TerminalBlock.EntityId, stuff);
+
+        if(createdTerminalControls)
+            return;
+
+        createdTerminalControls = true;
+        MyAPIGateway.TerminalControls.CustomControlGetter += TerminalControls_CustomControlGetter;
+    }
+
+    private static void TerminalControls_CustomControlGetter(IMyTerminalBlock block, List<IMyTerminalControl> controls)
+    {
+        bool found = TssSession.Instance.TssSettings.ContainsKey(block.EntityId);
+        Log.Info("found: " + found, "found: " + found, 500);
+        if (!found) {
+            return;
+        }
+
+        Stuff settings = TssSession.Instance.TssSettings[block.EntityId];
+
+        try {
+            // Add a checkbox.  It doesn't do anything yet.
+            var checkbox = MyAPIGateway.TerminalControls.CreateControl<IMyTerminalControlCheckbox, IMyTerminalBlock>("DO somethign");
+            checkbox.Title = MyStringId.GetOrCompute("Yeet");
+            checkbox.Tooltip = MyStringId.GetOrCompute("You guessed it.\nNope, actually try again.");
+            checkbox.Getter = (b) =>
+            {
+                // need some global state to hold the scale factor that this button controls
+                // if (b == null || b.GameLogic == null) return false;
+                Log.Info("checkbox.Getter");
+                return settings.Big;
+            };
+
+            checkbox.Setter = (b, value) =>
+            {
+                Log.Info("checkbox.Setter: setting value to: " + value);
+
+                settings.Big = value;
+            };
+
+            controls.Add(checkbox);
+
+            Log.Info("Added checkbox somewhere", "Added checkbox somewhere", 500);
+
+            // // Add a slider.
+            IMyTerminalControlSlider slider = MyAPIGateway.TerminalControls.CreateControl<IMyTerminalControlSlider, IMyTerminalBlock>("Sliderry");
+            slider.Title = MyStringId.GetOrCompute("LCD Script Scale");
+            slider.Tooltip = MyStringId.GetOrCompute("slip from side to side");
+            slider.SetLimits(0.25f, 2.5f);
+
+            slider.Getter = (b) =>
+            {
+                return settings.Scale;
+            };
+
+            slider.Setter = (b, value) =>
+            {
+                settings.Scale = value;
+            };
+
+            controls.Add(slider);
+        }
+        catch (Exception e) {
+            Log.Error(e);
+        }
+    }
+
+}
+
+[MyTextSurfaceScript("CargoSpace", "CargoSpace")]
+public class MyCargoSpace : IngotsAndOresTSS {
+    public MyCargoSpace(IMyTextSurface surface, IMyCubeBlock block, Vector2 size) : base(surface, block, size)
+    {
+        base.mode = ItemGroups.CargoSpace;
+        Log.Info("new CargoSpace TSS created");
     }
 }
 
